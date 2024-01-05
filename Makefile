@@ -31,7 +31,7 @@ else
 endif
 
 .PHONY: all
-all: app/app.bin tkey-totp check-hash
+all: app/app.bin tkey-totp
 
 
 podman:
