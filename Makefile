@@ -47,7 +47,7 @@ check-hash: app/app.bin
 	cd app && $(shasum) -c app.bin.sha512
 
 # Random number generator app
-OBJS=app/main.o app/app_proto.o
+OBJS=app/main.o app/app_proto.o app/cspring.o
 app/app.elf: $(OBJS)
 	$(CC) $(CFLAGS) $(OBJS) $(LDFLAGS) -L $(LIBDIR) -lmonocypher -o $@
 $(OBJS): $(INCLUDE)/tkey/tk1_mem.h app/app_proto.h

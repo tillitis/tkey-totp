@@ -8,6 +8,8 @@
 #include <tkey/led.h>
 
 #include "app_proto.h"
+#include "cspring.h"
+#include "tkey_totp.h"
 
 // clang-format off
 static volatile	uint32_t *cdi           = (volatile uint32_t *)TK1_MMIO_TK1_CDI_FIRST;
@@ -18,40 +20,6 @@ static volatile uint32_t *app_addr      = (volatile uint32_t *) TK1_MMIO_TK1_APP
 static volatile uint32_t *app_size      = (volatile uint32_t *) TK1_MMIO_TK1_APP_SIZE;
 
 // clang-format on
-
-const uint8_t app_name0[4] = "tk1 ";
-const uint8_t app_name1[4] = "totp";
-const uint32_t app_version = 0x00000001;
-
-typedef struct
-{
-    uint8_t name[32];
-    uint8_t name_len;
-    uint8_t key[32];
-    uint8_t key_len;
-    uint8_t digits;
-    uint8_t config;
-} record_t;
-
-typedef struct
-{
-    uint8_t nbr_of_records;
-    record_t record[32];
-    uint8_t config;
-} records_t;
-
-#define XCHACHA20_NONCE_LEN 24
-#define XCHACHA20_MAC_LEN 16
-
-typedef struct
-{
-    records_t records;
-    uint8_t nonce[XCHACHA20_NONCE_LEN];
-    uint8_t mac[XCHACHA20_MAC_LEN];
-} encrypted_records_t;
-
-// cmdlen - (responsecode + status)
-#define PAYLOAD_MAXBYTES (CMDLEN_MAXBYTES - 1)
 
 int main(void)
 {
@@ -66,6 +34,7 @@ int main(void)
     uint32_t nbytes_left = 0;
     uint32_t msg_idx;
     uint32_t local_cdi[8];
+    cspring_ctx cspring_ctx;
 
     uint8_t records_buffer[sizeof(encrypted_records_t)];
     records_t records = {};
@@ -85,6 +54,7 @@ int main(void)
 
     // Generate public key
     wordcpy(local_cdi, (void *)cdi, 8);
+    cspring_init(&cspring_ctx, local_cdi);
 
     set_led(LED_BLUE);
     for (;;)
@@ -192,7 +162,7 @@ int main(void)
 
                 encrypted_records_t* enc_records = (encrypted_records_t*) records_buffer;
                 // Encrypt, get new nonce.
-                // enc_records->nonce <<-  get som random data here
+                cspring_get((uint32_t *) enc_records->nonce, &cspring_ctx, XCHACHA20_NONCE_LEN/4);
 
                 crypto_aead_lock((uint8_t*)&enc_records->records, enc_records->mac, (const uint8_t*)local_cdi,
                                 enc_records->nonce, NULL, 0, (const uint8_t*)&records, sizeof(records_t));
