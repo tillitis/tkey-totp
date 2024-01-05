@@ -161,11 +161,33 @@ func main() {
 		os.Exit(1)
 	}
 
-	_, err := loadApp(*devPath, *speed, *ussFile, *enterUss)
+	totp, err := loadApp(*devPath, *speed, *ussFile, *enterUss)
 	if err != nil {
-		fmt.Errorf("loadApp: %w", err)
+		le.Printf("loadApp: %v", err)
+		os.Exit(1)
 	}
 	// Reset app, to have nothing stored.
+
+	var encBlob []byte
+
+	for {
+		left, data, err := totp.GetRecords()
+		if err != nil {
+			le.Printf("GetRecords: %v\n", err)
+		}
+
+		le.Printf("[left: %d] %x\n", left, data)
+
+		if left < 123 {
+			encBlob = append(encBlob, data[0:left]...)
+			break
+		} else {
+			encBlob = append(encBlob, data...)
+		}
+
+	}
+
+	le.Printf("%x", encBlob)
 
 	// Success
 	os.Exit(0)

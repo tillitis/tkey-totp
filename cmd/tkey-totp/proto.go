@@ -4,6 +4,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 
 	"github.com/tillitis/tkeyclient"
@@ -73,8 +75,8 @@ func New(tk *tkeyclient.TillitisKey) Totp {
 }
 
 // Close closes the connection to the TKey
-func (s Totp) Close() error {
-	if err := s.tk.Close(); err != nil {
+func (t Totp) Close() error {
+	if err := t.tk.Close(); err != nil {
 		return fmt.Errorf("tk.Close: %w", err)
 	}
 	return nil
@@ -82,7 +84,7 @@ func (s Totp) Close() error {
 
 // GetAppNameVersion gets the name and version of the running app in
 // the same style as the stick itself.
-func (s Totp) GetAppNameVersion() (*tkeyclient.NameVersion, error) {
+func (t Totp) GetAppNameVersion() (*tkeyclient.NameVersion, error) {
 	id := 2
 	tx, err := tkeyclient.NewFrameBuf(cmdGetNameVersion, id)
 	if err != nil {
@@ -90,21 +92,21 @@ func (s Totp) GetAppNameVersion() (*tkeyclient.NameVersion, error) {
 	}
 
 	tkeyclient.Dump("GetAppNameVersion tx", tx)
-	if err = s.tk.Write(tx); err != nil {
+	if err = t.tk.Write(tx); err != nil {
 		return nil, fmt.Errorf("Write: %w", err)
 	}
 
-	err = s.tk.SetReadTimeout(2)
+	err = t.tk.SetReadTimeout(2)
 	if err != nil {
 		return nil, fmt.Errorf("SetReadTimeout: %w", err)
 	}
 
-	rx, _, err := s.tk.ReadFrame(rspGetNameVersion, id)
+	rx, _, err := t.tk.ReadFrame(rspGetNameVersion, id)
 	if err != nil {
 		return nil, fmt.Errorf("ReadFrame: %w", err)
 	}
 
-	err = s.tk.SetReadTimeout(0)
+	err = t.tk.SetReadTimeout(0)
 	if err != nil {
 		return nil, fmt.Errorf("SetReadTimeout: %w", err)
 	}
@@ -113,4 +115,46 @@ func (s Totp) GetAppNameVersion() (*tkeyclient.NameVersion, error) {
 	nameVer.Unpack(rx[2:])
 
 	return nameVer, nil
+}
+
+func (t Totp) GetRecords() (int, []byte, error) {
+	id := 1
+	tx, err := tkeyclient.NewFrameBuf(cmdGetRecords, id)
+	if err != nil {
+		return 0, nil, fmt.Errorf("NewFramebuf: %w", err)
+	}
+	tkeyclient.Dump("cmdGetRecords tx", tx)
+	if err = t.tk.Write(tx); err != nil {
+		return 0, nil, fmt.Errorf("Write: %w", err)
+	}
+
+	err = t.tk.SetReadTimeout(2)
+	if err != nil {
+		return 0, nil, fmt.Errorf("SetReadTimeout: %w", err)
+	}
+
+	rx, _, err := t.tk.ReadFrame(rspGetRecords, id)
+	if err != nil {
+		return 0, nil, fmt.Errorf("ReadFrame: %w", err)
+	}
+
+	err = t.tk.SetReadTimeout(0)
+	if err != nil {
+		return 0, nil, fmt.Errorf("SetReadTimeout: %w", err)
+	}
+
+	if rx[2] != tkeyclient.StatusOK {
+		return 0, nil, fmt.Errorf("GetRecords NOK")
+	}
+
+	// Bytes left to recieve
+	var bytesLeft int16
+	buf := bytes.NewReader(rx[3:5])
+	err = binary.Read(buf, binary.LittleEndian, &bytesLeft)
+	if err != nil {
+		return 0, nil, fmt.Errorf("Binary.Read() %w", err)
+	}
+	le.Printf("%d\n", bytesLeft)
+
+	return int(bytesLeft), rx[5:], nil
 }
