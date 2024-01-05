@@ -30,9 +30,9 @@ int main(void)
     uint8_t cmd[CMDLEN_MAXBYTES];
     uint8_t rsp[CMDLEN_MAXBYTES];
     uint8_t in;
-    uint32_t nbytes = 0;
-    uint32_t nbytes_left = 0;
-    uint32_t msg_idx;
+    uint16_t nbytes = 0;
+    uint16_t nbytes_left = 0;
+    uint8_t msg_idx;
     uint32_t local_cdi[8];
     cspring_ctx cspring_ctx;
 
@@ -47,7 +47,7 @@ int main(void)
     *cpu_mon_ctrl = 1;
 
 #ifndef NODEBUG
-    qemu_puts("Hello, I'm randomapp! &stack is on: ");
+    qemu_puts("Hello, I'm totp-app! &stack is on: ");
     qemu_putinthex((uint32_t)&stack);
     qemu_lf();
 #endif
@@ -55,6 +55,21 @@ int main(void)
     // Generate public key
     wordcpy(local_cdi, (void *)cdi, 8);
     cspring_init(&cspring_ctx, local_cdi);
+
+
+    /* Temp debug: */
+    memcpy(records.record[0].name, "Test\0", sizeof("Test\0"));
+    records.record[0].name_len = sizeof("Test");
+    memcpy(records.record[0].key, "1234\0", sizeof("1234"));
+    records.record[0].key_len = sizeof("1234");
+    records.nbr_of_records = 1;
+
+    qemu_puts("Test record: name: ");
+    qemu_puts((char*)records.record[0].name);
+    qemu_lf();
+    qemu_puts("Test record: key: ");
+    qemu_puts((char*)records.record[0].key);
+    qemu_lf();
 
     set_led(LED_BLUE);
     for (;;)
@@ -162,11 +177,10 @@ int main(void)
 
                 encrypted_records_t* enc_records = (encrypted_records_t*) records_buffer;
                 // Encrypt, get new nonce.
-                cspring_get((uint32_t *) enc_records->nonce, &cspring_ctx, XCHACHA20_NONCE_LEN/4);
+                cspring_get((uint32_t *) enc_records->nonce, &cspring_ctx, XCHACHA20_NONCE_LEN);
 
                 crypto_aead_lock((uint8_t*)&enc_records->records, enc_records->mac, (const uint8_t*)local_cdi,
                                 enc_records->nonce, NULL, 0, (const uint8_t*)&records, sizeof(records_t));
-
             }
 
             if (nbytes_left > PAYLOAD_MAXBYTES) {
@@ -175,12 +189,18 @@ int main(void)
                 nbytes = nbytes_left;
             }
 
-            memcpy(rsp + 1, &records_buffer[msg_idx], nbytes);
+            qemu_puts("nbytes_left: ");
+            qemu_putinthex((uint32_t)nbytes_left);
+            qemu_lf();
+
+            // Protocol [ status_code (1), bytes_left (2), data (1-125) ]
+            memcpy(&rsp[1], &nbytes_left, sizeof(nbytes_left));
+            memcpy(rsp + 3, &records_buffer[msg_idx], nbytes);
             msg_idx += nbytes;
             nbytes_left -= nbytes;
 
             rsp[0] = STATUS_OK;
-            appreply(hdr, APP_RSP_LOAD_RECORDS, rsp);
+            appreply(hdr, APP_RSP_GET_RECORDS, rsp);
 
             break;
         // Get the name of stored records

@@ -13,7 +13,7 @@ CFLAGS = -target riscv32-unknown-none-elf -march=rv32iczmmul -mabi=ilp32 -mcmode
    -fno-builtin-putchar -nostdlib -mno-relax -flto -g \
    -Wall -Werror=implicit-function-declaration \
    -I $(INCLUDE) -I $(LIBDIR)  \
-   -DNODEBUG
+    -DQEMU_DEBUG
 
 AS = clang
 ASFLAGS = -target riscv32-unknown-none-elf -march=rv32iczmmul -mabi=ilp32 -mcmodel=medany -mno-relax
@@ -53,7 +53,7 @@ app/app.elf: $(OBJS)
 $(OBJS): $(INCLUDE)/tkey/tk1_mem.h app/app_proto.h
 
 # Uses ../.clang-format
-FMTFILES=random-generator/*.[ch]
+FMTFILES=app/*.[ch]
 
 .PHONY: fmt
 fmt:
@@ -67,7 +67,7 @@ checkfmt:
 TKEY_TOTP_VERSION ?= $(shell git describe --dirty --always | sed -n "s/^v\(.*\)/\1/p")
 
 # .PHONY to let go-build handle deps and rebuilds
-.PHONY: tkey-random-generator
+.PHONY: tkey-totp
 tkey-totp: app/app.bin
 	cp -af app/app.bin cmd/tkey-totp/app.bin
 	CGO_ENABLED=$(BUILD_CGO_ENABLED) go build -ldflags "-X main.version=$(TKEY_TOTP_VERSION)" -trimpath -o tkey-totp ./cmd/tkey-totp
